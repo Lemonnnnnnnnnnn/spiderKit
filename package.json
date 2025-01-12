@@ -1,0 +1,17 @@
+{
+  "name": "spiderkit",
+  "module": "index.ts",
+  "type": "module",
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/node": "^22.10.5"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "cheerio": "^1.0.0",
+    "commander": "^13.0.0",
+    "crypto-js": "^4.2.0"
+  }
+}
