@@ -6,12 +6,16 @@
     "@types/bun": "latest",
     "@types/node": "^22.10.5"
   },
+  "scripts": {
+    "dev": "bun run ./src/cli.ts crawl"
+  },
   "peerDependencies": {
     "typescript": "^5.0.0"
   },
   "dependencies": {
     "cheerio": "^1.0.0",
     "commander": "^13.0.0",
-    "crypto-js": "^4.2.0"
+    "crypto-js": "^4.2.0",
+    "jsdom": "^26.0.0"
   }
 }

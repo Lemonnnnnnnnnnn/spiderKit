@@ -1,7 +1,7 @@
-import type { MediaItem, ParseResult } from '../../types';
-import { BaseParser } from '../base';
 import * as cheerio from 'cheerio';
-import { getVideoInfo } from './context';
+import type { ParseResult } from '../../types';
+import { BaseParser } from '../base';
+import { getVideoInfo } from './contexts/play';
 
 export class NtdmParser extends BaseParser {
   name = 'ntdm';
@@ -71,9 +71,11 @@ async function parseYhdmUrl(url : string) {
     const bt_token = parseBtToken(html)
     const key = parseEncodedKey(html)
 
-    const videoInfo = getVideoInfo(key,bt_token);
+    const videoUrl = getVideoInfo(key,bt_token);
 
-    console.log({videoInfo})
+    console.log({videoUrl})
+
+    return videoUrl
 } 
 
 function parseBtToken(html: string) { 
