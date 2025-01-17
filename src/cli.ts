@@ -39,5 +39,4 @@ crawler.crawl({
   url: options.url,
   output: options.output,
   concurrentDownloads: parseInt(options.concurrent),
-  parser: 'ntdm'
 }).catch(console.error);

@@ -10,7 +10,8 @@
     "dev": "bun run ./src/cli.ts --proxy-host 127.0.0.1 --proxy-port 7890 -o output",
     "test": "bun test",
     "test:watch": "bun test --watch",
-    "test:coverage": "bun test --coverage"
+    "test:coverage": "bun test --coverage",
+    "build": "bun build ./src/cli.ts --compile --outfile spiderKit"
   },
   "peerDependencies": {
     "typescript": "^5.0.0"

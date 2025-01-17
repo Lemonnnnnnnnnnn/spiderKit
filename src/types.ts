@@ -1,6 +1,6 @@
 export interface CrawlerOptions {
     url: string;
-    parser: string;
+    parser?: string;
     output: string;
     concurrentRequests?: number;  // 并发爬取数量
     concurrentDownloads?: number; // 并发下载数量  
