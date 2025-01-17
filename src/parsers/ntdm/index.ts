@@ -18,15 +18,33 @@ export class NtdmParser extends BaseParser {
   }
   
   async parse(html: string): Promise<ParseResult> {
-    const $ = cheerio.load(html);
+    this.info('开始解析页面...');
+    const title = this.parseTitle(html);
+    this.success(`解析到标题: ${title}`);
+    
     const urls = this.parseEpisodeUrl(html);
-    await this.parseEpisodeVideo(urls[0]);
+    this.info(`解析到 ${urls.length} 个剧集链接`);
+    
+    this.info('开始获取视频URL...');
+    const videoUrls = await Promise.all(
+      urls.map(async (url, index) => {
+        this.log(`[${index + 1}/${urls.length}] 正在解析: ${url}`);
+        return this.parseEpisodeVideo(url);
+      })
+    );
+    
+    const videos = videoUrls
+      .map((url, index) => url ? {
+        name: `${title}-${index + 1}`,
+        url: url
+      } : null)
+      .filter((video): video is NonNullable<typeof video> => video !== null);
+    
+    this.success(`成功解析 ${videos.length}/${urls.length} 个视频URL`);
     
     return {
-      title: $('title').text(),
-      content: $('.content').text(),
-      images: [],
-      videos: [],
+      title,
+      videos,
     };
   }
 
@@ -44,27 +62,56 @@ export class NtdmParser extends BaseParser {
   }
 
   private async parseEpisodeVideo(url: string) {
-    const html = await this.request.fetchText(url);
-    return this.parseVideoInfo(html);
+    try {
+      const html = await this.request.fetchText(url);
+      return this.parseVideoInfo(html);
+    } catch (error) {
+      this.error(`解析视频失败: ${url}`, error);
+      return null;
+    }
   }
 
   private parseVideoInfo(html: string) {
-    const $ = cheerio.load(html);
-    const videoScript = $('#ageframediv > script:nth-child(1)').text();
-    const json = videoScript.match(/player_aaaa=(.*)/)?.[1];
-    const player_aaaa = JSON.parse(json || '{}');
-    const yhdmUrl = player_aaaa.url;
-    
-    return this.parseYhdmUrl(`https://danmu.yhdmjx.com/m3u8.php?url=${yhdmUrl}`);
+    try {
+      const $ = cheerio.load(html);
+      const videoScript = $('#ageframediv > script:nth-child(1)').text();
+      const json = videoScript.match(/player_aaaa=(.*)/)?.[1];
+      if (!json) {
+        this.warn('未找到 player_aaaa 信息');
+        return null;
+      }
+      
+      const player_aaaa = JSON.parse(json || '{}');
+      const yhdmUrl = player_aaaa.url;
+      if (!yhdmUrl) {
+        this.warn('未找到视频URL');
+        return null;
+      }
+      
+      return this.parseYhdmUrl(`https://danmu.yhdmjx.com/m3u8.php?url=${yhdmUrl}`);
+    } catch (error) {
+      this.error('解析视频信息失败', error);
+      return null;
+    }
   }
 
   private async parseYhdmUrl(url: string) { 
-    const html = await this.request.fetchText(url);
-    const bt_token = this.parseBtToken(html);
-    const key = this.parseEncodedKey(html);
-    const videoUrl = getVideoInfo(key, bt_token);
-    console.log({videoUrl});
-    return videoUrl;
+    try {
+      const html = await this.request.fetchText(url);
+      const bt_token = this.parseBtToken(html);
+      const key = this.parseEncodedKey(html);
+      
+      if (!bt_token || !key) {
+        this.warn('未找到必要的解密信息');
+        return null;
+      }
+      
+      const videoUrl = getVideoInfo(key, bt_token) as string;
+      return videoUrl;
+    } catch (error) {
+      this.error('解析最终视频URL失败', error);
+      return null;
+    }
   }
 
   private parseBtToken(html: string) { 

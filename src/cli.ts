@@ -11,7 +11,7 @@ program
   .version('1.0.0')
   .requiredOption('-u, --url <urls...>', 'URLs to crawl')
   .requiredOption('-o, --output <path>', 'Output directory path')
-  .option('-c, --concurrent <number>', 'Number of concurrent downloads', '3')
+  .option('-c, --concurrent <number>', 'Number of concurrent downloads', '1')
   .option('--proxy-host <host>', 'Proxy host')
   .option('--proxy-port <port>', 'Proxy port')
   .option('--proxy-protocol <protocol>', 'Proxy protocol (http/https)', 'http')

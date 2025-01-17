@@ -33,8 +33,8 @@ export class Crawler {
     const { 
       url, 
       output,
-      concurrentRequests = 3,
-      concurrentDownloads = 3
+      concurrentRequests = 1,
+      concurrentDownloads = 1
     } = options;
 
     // 如果是多个URL，可以并发爬取
