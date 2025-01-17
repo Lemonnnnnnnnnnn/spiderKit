@@ -2,14 +2,19 @@ import { mkdir, writeFile } from 'fs/promises';
 import { join, dirname, extname } from 'path';
 import type { MediaItem, Downloader } from '../types';
 import { runConcurrent } from '../utils/concurrent';
+import { Request, type RequestOptions } from '../utils/request';
 
 export class FileDownloader implements Downloader {
+  private request: Request;
+
+  constructor(options: RequestOptions = {}) {
+    this.request = new Request(options);
+  }
+
   async download(item: MediaItem, destPath: string): Promise<void> {
-    const response = await fetch(item.url);
-    const buffer = await response.arrayBuffer();
-    
+    const buffer = await this.request.fetchBuffer(item.url);
     await mkdir(dirname(destPath), { recursive: true });
-    await writeFile(destPath, Buffer.from(buffer));
+    await writeFile(destPath, buffer);
   }
   
   async downloadBatch(

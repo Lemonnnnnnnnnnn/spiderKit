@@ -1,34 +1,43 @@
+#!/usr/bin/env bun
 import { Command } from 'commander';
 import { Crawler } from './crawler';
+import type { RequestOptions } from './utils/request';
 
 const program = new Command();
 
 program
-  .name('crawler')
-  .description('A flexible web crawler framework')
-  .version('1.0.0');
+  .name('media-crawler')
+  .description('A CLI tool to crawl media files from websites')
+  .version('1.0.0')
+  .requiredOption('-u, --url <urls...>', 'URLs to crawl')
+  .requiredOption('-o, --output <path>', 'Output directory path')
+  .option('-c, --concurrent <number>', 'Number of concurrent downloads', '3')
+  .option('--proxy-host <host>', 'Proxy host')
+  .option('--proxy-port <port>', 'Proxy port')
+  .option('--proxy-protocol <protocol>', 'Proxy protocol (http/https)', 'http')
+  .option('--timeout <ms>', 'Request timeout in milliseconds', '30000')
+  .parse();
 
-program
-  .command('crawl')
-  .description('Crawl a website')
-  .requiredOption('-u, --url <urls...>', 'Target URLs to crawl')
-  .option('-p, --parser <parser>', 'Parser to use', 'default')
-  .option('-o, --output <dir>', 'Output directory', './output')
-//   .option('-cr, --concurrent-requests <number>', 'Concurrent requests', '3')
-  .option('-c, --concurrent-downloads <number>', 'Concurrent downloads', '3')
-  .action(async (options) => {
-    try {
-      const crawler = new Crawler();
-      await crawler.crawl({
-        ...options,
-        // concurrentRequests: parseInt(options.concurrentRequests),
-        concurrentDownloads: parseInt(options.concurrentDownloads)
-      });
-      console.log('Crawling completed successfully!');
-    } catch (error) {
-      console.error('Crawling failed:', error);
-      process.exit(1);
-    }
-  });
+const options = program.opts();
 
-program.parse();
+const requestOptions: RequestOptions = {
+  timeout: parseInt(options.timeout)
+};
+
+// 如果提供了代理配置，添加到请求选项中
+if (options.proxyHost && options.proxyPort) {
+  requestOptions.proxy = {
+    host: options.proxyHost,
+    port: parseInt(options.proxyPort),
+    protocol: options.proxyProtocol
+  };
+}
+
+const crawler = new Crawler(requestOptions);
+
+crawler.crawl({
+  url: options.url,
+  output: options.output,
+  concurrentDownloads: parseInt(options.concurrent),
+  parser: 'ntdm'
+}).catch(console.error);

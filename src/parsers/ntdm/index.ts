@@ -2,9 +2,16 @@ import * as cheerio from 'cheerio';
 import type { ParseResult } from '../../types';
 import { BaseParser } from '../base';
 import { getVideoInfo } from './contexts/play';
+import { Request, type RequestOptions } from '../../utils/request';
 
 export class NtdmParser extends BaseParser {
+  private request: Request;
   name = 'ntdm';
+
+  constructor(options: RequestOptions = {}) {
+    super();
+    this.request = new Request(options);
+  }
   
   match(url: string): boolean {
     return url.includes('ntdm');
@@ -12,79 +19,60 @@ export class NtdmParser extends BaseParser {
   
   async parse(html: string): Promise<ParseResult> {
     const $ = cheerio.load(html);
-    const urls = parseEpisodeUrl(html)
-    await parseEpisodeVideo(urls[0])
+    const urls = this.parseEpisodeUrl(html);
+    await this.parseEpisodeVideo(urls[0]);
     
     return {
       title: $('title').text(),
       content: $('.content').text(),
-      images : [],
-      videos : [],
+      images: [],
+      videos: [],
     };
   }
-}
 
-function parseTitle(html: string) {
+  private parseTitle(html: string) {
     const $ = cheerio.load(html);
+    return $('#detailname > a').text();
+  }
 
-    let title = $('#detailname > a').text()
-
-    return title
-}
-
-function parseEpisodeUrl(html: string) {
+  private parseEpisodeUrl(html: string) {
     const $ = cheerio.load(html);
+    return $('#main0 > div:nth-child(1) > ul > li > a')
+      .map((i, el) => $(el).attr('href'))
+      .get()
+      .map((url) => `https://www.ntdm9.com${url}`);
+  }
 
-    let urls = $('#main0 > div:nth-child(1) > ul > li > a')
-        .map((i, el) => $(el)
-        .attr('href'))
-        .get()
-        .map((url) => `https://www.ntdm9.com${url}`)
+  private async parseEpisodeVideo(url: string) {
+    const html = await this.request.fetchText(url);
+    return this.parseVideoInfo(html);
+  }
 
-    return urls
-}
-
-async function parseEpisodeVideo(url: string) {
-    const html = await fetch(url).then(res=> res.text())
+  private parseVideoInfo(html: string) {
+    const $ = cheerio.load(html);
+    const videoScript = $('#ageframediv > script:nth-child(1)').text();
+    const json = videoScript.match(/player_aaaa=(.*)/)?.[1];
+    const player_aaaa = JSON.parse(json || '{}');
+    const yhdmUrl = player_aaaa.url;
     
-    parseVideoInfo(html)
-}
+    return this.parseYhdmUrl(`https://danmu.yhdmjx.com/m3u8.php?url=${yhdmUrl}`);
+  }
 
-function parseVideoInfo(html: string) {
-    const $ = cheerio.load(html);
+  private async parseYhdmUrl(url: string) { 
+    const html = await this.request.fetchText(url);
+    const bt_token = this.parseBtToken(html);
+    const key = this.parseEncodedKey(html);
+    const videoUrl = getVideoInfo(key, bt_token);
+    console.log({videoUrl});
+    return videoUrl;
+  }
 
-    const videoScript = $('#ageframediv > script:nth-child(1)').text()
+  private parseBtToken(html: string) { 
+    return html.match(/bt_token = "(.*)"/)?.[1];
+  }
 
-    const json = videoScript.match(/player_aaaa=(.*)/)?.[1]
-
-    const player_aaaa = JSON.parse(json || '{}')
-
-    const yhdmUrl = player_aaaa.url
-    
-    parseYhdmUrl(`https://danmu.yhdmjx.com/m3u8.php?url=${yhdmUrl}`)
-}
-
-
-async function parseYhdmUrl(url : string) { 
-    const html = await fetch(url).then(res=> res.text())
-
-    const bt_token = parseBtToken(html)
-    const key = parseEncodedKey(html)
-
-    const videoUrl = getVideoInfo(key,bt_token);
-
-    console.log({videoUrl})
-
-    return videoUrl
-} 
-
-function parseBtToken(html: string) { 
-    const btToken = html.match(/bt_token = "(.*)"/)?.[1]
-    return btToken
-}
-
-function parseEncodedKey(html: string) { 
-    const encodedKey = html.match(/"url": getVideoInfo\(\"(.*)\"\)/)?.[1];
-    return encodedKey
+  private parseEncodedKey(html: string) { 
+    return html.match(/"url": getVideoInfo\(\"(.*)\"\)/)?.[1];
+  }
 }
 

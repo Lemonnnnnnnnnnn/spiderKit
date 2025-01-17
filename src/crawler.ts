@@ -3,14 +3,18 @@ import { NtdmParser } from './parsers/ntdm';
 import { FileDownloader } from './downloaders/downloader';
 import { join } from 'path';
 import { runConcurrent } from './utils/concurrent';
+import { Request } from './utils/request';
+import type { RequestOptions } from './utils/request';
 
 export class Crawler {
   private parsers: Parser[] = [];
   private downloader: Downloader;
+  private request: Request;
   
-  constructor() {
-    this.parsers.push(new NtdmParser());
-    this.downloader = new FileDownloader();
+  constructor(private options: RequestOptions = {}) {
+    this.parsers.push(new NtdmParser(options));
+    this.downloader = new FileDownloader(options);
+    this.request = new Request(options);
   }
 
   registerParser(parser: Parser) {
@@ -22,8 +26,7 @@ export class Crawler {
   }
 
   async crawlUrl(url: string): Promise<string> {
-    const response = await fetch(url);
-    return response.text();
+    return this.request.fetchText(url);
   }
 
   async crawl(options: CrawlerOptions) {
