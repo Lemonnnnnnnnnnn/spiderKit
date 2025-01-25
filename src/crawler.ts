@@ -1,21 +1,18 @@
-import type { CrawlerOptions, Parser, Downloader, MediaItem } from './types';
+import type { CrawlerOptions, Parser, MediaItem } from './types';
 import { NtdmParser } from './parsers/ntdm';
 import { DdysParser } from './parsers/ddys';
-import { FileDownloader } from './downloaders/downloader';
 import { join } from 'path';
 import { runConcurrent } from './utils/concurrent';
-import type { RequestOptions } from './utils/request';
+import type { RequestOptions } from './request';
 
 export class Crawler {
   private parsers: Parser[] = [];
-  private downloader: Downloader;
   
   constructor(options: RequestOptions = {}) {
     this.parsers.push(
       new NtdmParser(options),
       new DdysParser(options)
     );
-    this.downloader = new FileDownloader(options);
   }
 
   registerParser(parser: Parser) {
@@ -42,7 +39,6 @@ export class Crawler {
       concurrentDownloads = 1
     } = options;
 
-    // 如果是多个URL，可以并发爬取
     const urls = Array.isArray(url) ? url : [url];
     const htmlContents = await runConcurrent(
       urls,
@@ -50,52 +46,43 @@ export class Crawler {
       concurrentRequests
     );
 
-    // 解析所有内容
     const results = await Promise.all(
       htmlContents.map(async (html, index) => {
         const parser = this.getParser(urls[index]);
         if (!parser) {
           throw new Error(`No parser found for URL: ${urls[index]}`);
         }
-        return parser.parse(html);
+        return { parser, result: await parser.parse(html) };
       })
     );
     
     // 为每个网站分别下载媒体文件
-    for (const result of results) {
+    for (const { parser, result } of results) {
       const siteTitle = result.title || 'unnamed_site';
+      const siteDir = join(output, siteTitle);
       
       if (result.images && result.images.length > 0) {
-        await this.downloader.downloadBatch(
+        await parser.downloadBatch(
           result.images,
-          output,
+          siteDir,
           'images',
-          siteTitle,
           concurrentDownloads
         );
       }
       
       if (result.videos && result.videos.length > 0) {
-        await this.downloader.downloadBatch(
+        await parser.downloadBatch(
           result.videos,
-          output,
+          siteDir,
           'videos',
-          siteTitle,
           concurrentDownloads
         );
       }
 
-      // 为每个网站创建单独的结果文件
       await Bun.write(
-        join(output, siteTitle, 'result.json'),
+        join(siteDir, 'result.json'),
         JSON.stringify(result, null, 2)
       );
     }
-    
-    // 保存总体结果
-    // await Bun.write(
-    //   join(output, 'all_results.json'),
-    //   JSON.stringify(results, null, 2)
-    // );
   }
 }

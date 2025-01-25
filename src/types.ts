@@ -14,6 +14,13 @@ export interface Parser {
   parse(html: string): Promise<ParseResult>;
   match(url: string): boolean;
   fetchHtml(url: string): Promise<string>;
+  downloadMedia(item: MediaItem, outputDir: string): Promise<void>;
+  downloadBatch(
+    items: MediaItem[],
+    outputDir: string,
+    type: string,
+    concurrent: number
+  ): Promise<void>;
 }
   
 export interface ParseResult {
@@ -27,15 +34,4 @@ export interface ParseResult {
 export interface MediaItem {
   name: string;
   url: string;
-}
-  
-export interface Downloader {
-  download(item: MediaItem, destPath: string): Promise<void>;
-  downloadBatch(
-    items: MediaItem[],
-    outputDir: string,
-    type: string,
-    siteTitle: string,
-    concurrent: number
-  ): Promise<void>; 
 }

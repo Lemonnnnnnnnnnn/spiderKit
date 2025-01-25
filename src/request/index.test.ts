@@ -1,5 +1,5 @@
 import { describe, expect, test, beforeAll, afterAll } from "bun:test";
-import { Request, type RequestOptions } from "./request";
+import { Request, type RequestOptions } from ".";
 
 describe("Request", () => {
   const proxyOptions: RequestOptions = {

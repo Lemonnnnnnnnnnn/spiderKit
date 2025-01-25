@@ -1,7 +1,7 @@
-import type { Fetcher, FetcherOptions } from './fetchers/types';
+import type { Fetcher, FetcherOptions } from '../request/fetchers/types';
 import type { FetcherType } from '../types';
-import { AxiosFetcher } from './fetchers/axios';
-import { PlaywrightFetcher } from './fetchers/playwright';
+import { AxiosFetcher } from '../request/fetchers/axios';
+import { PlaywrightFetcher } from '../request/fetchers/playwright';
 
 export type { FetcherOptions as RequestOptions };
 
@@ -22,12 +22,12 @@ export class Request {
     }
   }
 
-  async fetchText(url: string): Promise<string> {
-    return this.fetcher.fetchText(url);
+  async fetchText(url: string, headers?: Record<string, string>): Promise<string> {
+    return this.fetcher.fetchText(url, headers);
   }
 
-  async fetchBuffer(url: string): Promise<Buffer> {
-    return this.fetcher.fetchBuffer(url);
+  async fetchBuffer(url: string, headers?: Record<string, string>): Promise<Buffer> {
+    return this.fetcher.fetchBuffer(url, headers);
   }
 
   async close(): Promise<void> {

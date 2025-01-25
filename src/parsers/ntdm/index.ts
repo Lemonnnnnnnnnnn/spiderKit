@@ -2,10 +2,10 @@ import * as cheerio from 'cheerio';
 import type { ParseResult, FetcherType } from '../../types';
 import { BaseParser } from '../base';
 import { getVideoInfo } from './contexts/play';
-import { Request, type RequestOptions } from '../../utils/request';
+import { Request, type RequestOptions } from '../../request';
 
 export class NtdmParser extends BaseParser {
-  private request: Request;
+  protected request: Request;
   name = 'ntdm';
   fetcherType: FetcherType = 'axios';
 
