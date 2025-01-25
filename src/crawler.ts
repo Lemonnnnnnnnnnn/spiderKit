@@ -11,10 +11,11 @@ export class Crawler {
   private downloader: Downloader;
   private request: Request;
   
-  constructor(private options: RequestOptions = {}) {
-    this.parsers.push(new NtdmParser(options));
-    this.downloader = new FileDownloader(options);
-    this.request = new Request(options);
+  constructor(options: RequestOptions & { useBrowser?: boolean } = {}) {
+    const { useBrowser, ...requestOptions } = options;
+    this.parsers.push(new NtdmParser(requestOptions));
+    this.downloader = new FileDownloader(requestOptions);
+    this.request = new Request(requestOptions, useBrowser);
   }
 
   registerParser(parser: Parser) {
@@ -88,9 +89,9 @@ export class Crawler {
     }
     
     // 保存总体结果
-    await Bun.write(
-      join(output, 'all_results.json'),
-      JSON.stringify(results, null, 2)
-    );
+    // await Bun.write(
+    //   join(output, 'all_results.json'),
+    //   JSON.stringify(results, null, 2)
+    // );
   }
 }

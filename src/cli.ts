@@ -16,6 +16,7 @@ program
   .option('--proxy-port <port>', 'Proxy port')
   .option('--proxy-protocol <protocol>', 'Proxy protocol (http/https)', 'http')
   .option('--timeout <ms>', 'Request timeout in milliseconds', '30000')
+  .option('--use-browser', 'Use browser (Playwright) for crawling', false)
   .parse();
 
 const options = program.opts();
@@ -33,7 +34,10 @@ if (options.proxyHost && options.proxyPort) {
   };
 }
 
-const crawler = new Crawler(requestOptions);
+const crawler = new Crawler({
+  ...requestOptions,
+  useBrowser: options.useBrowser
+});
 
 crawler.crawl({
   url: options.url,
