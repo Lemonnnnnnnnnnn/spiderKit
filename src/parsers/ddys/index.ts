@@ -34,20 +34,7 @@ export class DdysParser extends BaseParser {
     async parse(html: string): Promise<ParseResult> {
         try {
             this.info(`开始解析，当前页面ID: ${this.currentPageId}`);
-            
-            // 设置进度回调
-            if (this.currentPageId) {
-                await this.request.fetcher.evaluateScript(
-                    this.currentPageId,
-                    (callback: string) => {
-                        // @ts-ignore
-                        window._reportProgress = (progress: number, received: number, total: number) => {
-                            console.log(`下载进度: ${progress}% (${received}/${total} bytes)`);
-                        };
-                    }
-                );
-            }
-
+    
             this.info('开始解析页面...');
             const title = this.parseTitle(html);
             this.success(`解析到标题: ${title}`);
@@ -135,8 +122,6 @@ export class DdysParser extends BaseParser {
                     }
 
                     const reader = response.body!.getReader();
-                    const contentLength = parseInt(response.headers.get('Content-Length') || '0');
-                    let receivedLength = 0;
                     
                     while(true) {
                         const {done, value} = await reader.read();
@@ -148,14 +133,6 @@ export class DdysParser extends BaseParser {
                         // 直接传递 Uint8Array 数据
                         // @ts-ignore
                         window._chunkCallback(Array.from(value));
-                        receivedLength += value.length;
-                        
-                        // 计算并报告进度
-                        const progress = contentLength ? 
-                            Math.round((receivedLength / contentLength) * 100) : 0;
-                        
-                        // @ts-ignore
-                        window._reportProgress?.(progress, receivedLength, contentLength);
                     }
                 },
                 item.url

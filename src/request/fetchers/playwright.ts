@@ -35,20 +35,6 @@ export class PlaywrightFetcher implements Fetcher {
       }
       
       this.context = await this.browser.newContext(contextOptions);
-
-      await this.context.addInitScript(`
-        window._proxyConfig = ${JSON.stringify(this.options.proxy || {})};
-        window._fetch = window.fetch;
-        window.fetch = async (url, options = {}) => {
-          options.headers = {
-            ...options.headers,
-            'Referer': 'https://ddys.pro/',
-            'Origin': 'https://ddys.pro',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
-          };
-          return window._fetch(url, options);
-        };
-      `);
     }
   }
 
