@@ -8,7 +8,7 @@ export interface FetcherOptions {
 }
 
 export interface Fetcher {
-  fetchText(url: string): Promise<string>;
-  fetchBuffer(url: string): Promise<Buffer>;
+  fetchText(url: string, headers?: Record<string, string>): Promise<string>;
+  fetchBuffer(url: string, headers?: Record<string, string>): Promise<Buffer>;
   close?(): Promise<void>;
 } 

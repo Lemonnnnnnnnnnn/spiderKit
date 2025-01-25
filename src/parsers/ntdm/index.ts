@@ -1,5 +1,5 @@
 import * as cheerio from 'cheerio';
-import type { ParseResult } from '../../types';
+import type { ParseResult, FetcherType } from '../../types';
 import { BaseParser } from '../base';
 import { getVideoInfo } from './contexts/play';
 import { Request, type RequestOptions } from '../../utils/request';
@@ -7,10 +7,15 @@ import { Request, type RequestOptions } from '../../utils/request';
 export class NtdmParser extends BaseParser {
   private request: Request;
   name = 'ntdm';
+  fetcherType: FetcherType = 'axios';
 
   constructor(options: RequestOptions = {}) {
     super();
-    this.request = new Request(options);
+    this.request = new Request(options, this.fetcherType);
+  }
+  
+  async fetchHtml(url: string): Promise<string> {
+    return this.request.fetchText(url);
   }
   
   match(url: string): boolean {

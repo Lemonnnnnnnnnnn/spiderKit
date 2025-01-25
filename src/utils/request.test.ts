@@ -15,7 +15,7 @@ describe("Request", () => {
     let request: Request;
 
     beforeAll(() => {
-      request = new Request(proxyOptions, true); // 使用 Playwright
+      request = new Request(proxyOptions); // 使用 Playwright
     });
 
     test("should fetch text from baidu using Playwright", async () => {
@@ -41,7 +41,7 @@ describe("Request", () => {
     let request: Request;
 
     beforeAll(() => {
-      request = new Request(proxyOptions, false); // 使用 Axios
+      request = new Request(proxyOptions, 'axios'); // 使用 Axios
     });
 
     test("should fetch text from Google with proxy", async () => {

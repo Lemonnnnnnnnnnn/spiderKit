@@ -1,21 +1,21 @@
 import type { CrawlerOptions, Parser, Downloader, MediaItem } from './types';
 import { NtdmParser } from './parsers/ntdm';
+import { DdysParser } from './parsers/ddys';
 import { FileDownloader } from './downloaders/downloader';
 import { join } from 'path';
 import { runConcurrent } from './utils/concurrent';
-import { Request } from './utils/request';
 import type { RequestOptions } from './utils/request';
 
 export class Crawler {
   private parsers: Parser[] = [];
   private downloader: Downloader;
-  private request: Request;
   
-  constructor(options: RequestOptions & { useBrowser?: boolean } = {}) {
-    const { useBrowser, ...requestOptions } = options;
-    this.parsers.push(new NtdmParser(requestOptions));
-    this.downloader = new FileDownloader(requestOptions);
-    this.request = new Request(requestOptions, useBrowser);
+  constructor(options: RequestOptions = {}) {
+    this.parsers.push(
+      new NtdmParser(options),
+      new DdysParser(options)
+    );
+    this.downloader = new FileDownloader(options);
   }
 
   registerParser(parser: Parser) {
@@ -27,7 +27,11 @@ export class Crawler {
   }
 
   async crawlUrl(url: string): Promise<string> {
-    return this.request.fetchText(url);
+    const parser = this.getParser(url);
+    if (!parser) {
+      throw new Error(`No parser found for URL: ${url}`);
+    }
+    return parser.fetchHtml(url);
   }
 
   async crawl(options: CrawlerOptions) {

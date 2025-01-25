@@ -1,9 +1,11 @@
-import type { Parser, ParseResult } from "../types";
+import type { Parser, ParseResult, FetcherType } from "../types";
 
 export abstract class BaseParser implements Parser {
     abstract name: string;
+    abstract fetcherType: FetcherType;
     abstract parse(html: string): Promise<ParseResult>;
     abstract match(url: string): boolean;
+    abstract fetchHtml(url: string): Promise<string>;
 
     protected log(message: string) {
         console.log(`[${this.name}] ${message}`);
