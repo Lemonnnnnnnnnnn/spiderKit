@@ -5,20 +5,40 @@ import type { Fetcher, FetcherOptions } from './types';
 export class RawHttpFetcher implements Fetcher {
   private options: FetcherOptions;
   private ciphers: string;
+  private debug: boolean;
 
   constructor(options: FetcherOptions = {}) {
     this.options = options;
     this.ciphers = this.shuffleCiphers();
+    this.debug = options.debug || false;
+  }
+
+  private log(message: string, ...args: any[]) {
+    if (this.debug) {
+      console.log(`[RawHttp] ${message}`, ...args);
+    }
+  }
+
+  private error(message: string, error?: any) {
+    if (this.debug) {
+      if (error) {
+        console.error(`[RawHttp] ❌ ${message}:`, error);
+      } else {
+        console.error(`[RawHttp] ❌ ${message}`);
+      }
+    }
   }
 
   private shuffleCiphers(): string {
     const defaultCiphers = tls.DEFAULT_CIPHERS.split(':');
-    return [
+    const shuffled = [
       defaultCiphers[0],
       defaultCiphers[2],
       defaultCiphers[1],
       ...defaultCiphers.slice(3)
     ].join(':');
+    this.log('Shuffled ciphers:', shuffled);
+    return shuffled;
   }
 
   private async createConnection(hostname: string, port: number): Promise<tls.TLSSocket> {
@@ -26,6 +46,7 @@ export class RawHttpFetcher implements Fetcher {
 
     // 如果配置了代理，先连接到代理服务器
     if (this.options.proxy) {
+      this.log('Connecting to proxy:', `${this.options.proxy.host}:${this.options.proxy.port}`);
       socket = await new Promise<net.Socket>((resolve, reject) => {
         const proxySocket = net.connect({
           host: this.options.proxy!.host,
@@ -33,9 +54,16 @@ export class RawHttpFetcher implements Fetcher {
           timeout: this.options.timeout || 30000
         });
         
-        proxySocket.once('connect', () => resolve(proxySocket));
-        proxySocket.once('error', reject);
+        proxySocket.once('connect', () => {
+          this.log('Connected to proxy');
+          resolve(proxySocket);
+        });
+        proxySocket.once('error', (err) => {
+          this.error('Proxy connection error', err);
+          reject(err);
+        });
         proxySocket.once('timeout', () => {
+          this.error('Proxy connection timeout');
           proxySocket.destroy();
           reject(new Error('Proxy connection timeout'));
         });
@@ -52,12 +80,14 @@ export class RawHttpFetcher implements Fetcher {
         ''
       ].join('\r\n');
       
+      this.log('Sending CONNECT request to proxy');
       socket.write(connectReq);
 
       // 等待代理响应
       await new Promise((resolve, reject) => {
         let response = '';
         const proxyTimeout = setTimeout(() => {
+          this.error('Proxy response timeout');
           socket.destroy();
           reject(new Error('Proxy response timeout'));
         }, this.options.timeout || 30000);
@@ -69,22 +99,27 @@ export class RawHttpFetcher implements Fetcher {
             socket.removeListener('data', onData);
             
             if (response.includes('200 Connection established')) {
+              this.log('Proxy connection established');
               resolve(response);
             } else {
+              const error = `Proxy connection failed: ${response.split('\r\n')[0]}`;
+              this.error(error);
               socket.destroy();
-              reject(new Error(`Proxy connection failed: ${response.split('\r\n')[0]}`));
+              reject(new Error(error));
             }
           }
         };
 
         socket.on('data', onData);
         socket.once('error', (err) => {
+          this.error('Proxy response error', err);
           clearTimeout(proxyTimeout);
           reject(err);
         });
       });
     } else {
       // 直接连接目标服务器
+      this.log('Connecting directly to:', `${hostname}:${port}`);
       socket = await new Promise<net.Socket>((resolve, reject) => {
         const directSocket = net.connect({
           host: hostname,
@@ -92,9 +127,16 @@ export class RawHttpFetcher implements Fetcher {
           timeout: this.options.timeout || 30000
         });
         
-        directSocket.once('connect', () => resolve(directSocket));
-        directSocket.once('error', reject);
+        directSocket.once('connect', () => {
+          this.log('Direct connection established');
+          resolve(directSocket);
+        });
+        directSocket.once('error', (err) => {
+          this.error('Direct connection error', err);
+          reject(err);
+        });
         directSocket.once('timeout', () => {
+          this.error('Direct connection timeout');
           directSocket.destroy();
           reject(new Error('Direct connection timeout'));
         });
@@ -102,6 +144,7 @@ export class RawHttpFetcher implements Fetcher {
     }
 
     // 建立 TLS 连接
+    this.log('Initiating TLS handshake');
     return new Promise<tls.TLSSocket>((resolve, reject) => {
       const tlsSocket = tls.connect({
         socket: socket,
@@ -115,21 +158,27 @@ export class RawHttpFetcher implements Fetcher {
       });
 
       const tlsTimeout = setTimeout(() => {
+        this.error('TLS handshake timeout');
         tlsSocket.destroy();
         reject(new Error('TLS handshake timeout'));
       }, this.options.timeout || 30000);
 
       tlsSocket.once('secureConnect', () => {
         clearTimeout(tlsTimeout);
+        this.log('TLS connection established');
+        this.log('TLS Protocol:', tlsSocket.getProtocol());
+        this.log('TLS Cipher:', tlsSocket.getCipher());
         resolve(tlsSocket);
       });
 
       tlsSocket.once('error', (err) => {
+        this.error('TLS connection error', err);
         clearTimeout(tlsTimeout);
         reject(err);
       });
 
       tlsSocket.once('timeout', () => {
+        this.error('TLS connection timeout');
         clearTimeout(tlsTimeout);
         tlsSocket.destroy();
         reject(new Error('TLS connection timeout'));

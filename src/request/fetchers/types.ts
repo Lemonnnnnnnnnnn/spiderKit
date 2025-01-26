@@ -5,6 +5,7 @@ export interface FetcherOptions {
     protocol?: string;
   };
   timeout?: number;
+  debug?: boolean;
 }
 
 export interface Fetcher {
