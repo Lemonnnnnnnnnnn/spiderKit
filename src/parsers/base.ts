@@ -96,4 +96,11 @@ export abstract class BaseParser implements Parser {
     protected success(message: string) {
         console.log(`[${this.name}] ✅ ${message}`);
     }
+
+    async close(): Promise<void> {
+        await Promise.all([
+            this.request.close(),
+            this.downloadRequest.close()
+        ]);
+    }
 }

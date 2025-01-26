@@ -21,6 +21,7 @@ export interface Parser {
     type: string,
     concurrent: number
   ): Promise<void>;
+  close?(): Promise<void>;  // 添加可选的关闭方法
 }
   
 export interface ParseResult {

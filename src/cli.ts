@@ -16,7 +16,6 @@ program
   .option('--proxy-port <port>', 'Proxy port')
   .option('--proxy-protocol <protocol>', 'Proxy protocol (http/https)', 'http')
   .option('--timeout <ms>', 'Request timeout in milliseconds', '30000')
-  .option('--fetcher <type>', 'Fetcher type (axios/playwright/tls)', 'axios')
   .parse();
 
 const options = program.opts();
@@ -36,11 +35,33 @@ if (options.proxyHost && options.proxyPort) {
 
 const crawler = new Crawler({
   ...requestOptions,
-  // fetcherType: options.fetcher
 });
 
-crawler.crawl({
-  url: options.url,
-  output: options.output,
-  concurrentDownloads: parseInt(options.concurrent),
-}).catch(console.error);
+// 添加错误处理和进程退出逻辑
+async function main() {
+  try {
+    await crawler.crawl({
+      url: options.url,
+      output: options.output,
+      concurrentDownloads: parseInt(options.concurrent),
+    });
+    process.exit(0);
+  } catch (error) {
+    console.error('Crawling failed:', error);
+    process.exit(1);
+  }
+}
+
+// 处理未捕获的异常
+process.on('uncaughtException', async (error) => {
+  console.error('Uncaught exception:', error);
+  process.exit(1);
+});
+
+// 处理未处理的 Promise 拒绝
+process.on('unhandledRejection', async (error) => {
+  console.error('Unhandled rejection:', error);
+  process.exit(1);
+});
+
+main();

@@ -9,7 +9,7 @@ export class DdysParser extends BaseParser {
     protected request: Request;
     protected downloadRequest: Request;
     name = "ddys";
-    fetcherType: FetcherType = 'playwright';
+    fetcherType: FetcherType = 'tls';
 
     constructor(options: RequestOptions = {}) {
         super();
