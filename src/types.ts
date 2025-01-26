@@ -6,7 +6,7 @@ export interface CrawlerOptions {
     concurrentDownloads?: number; // 并发下载数量  
 }
   
-export type FetcherType = 'axios' | 'playwright';
+export type FetcherType = 'axios' | 'playwright' | 'tls';
 
 export interface Parser {
   name: string;

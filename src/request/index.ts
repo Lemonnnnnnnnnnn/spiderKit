@@ -2,6 +2,7 @@ import type { Fetcher, FetcherOptions } from '../request/fetchers/types';
 import type { FetcherType } from '../types';
 import { AxiosFetcher } from '../request/fetchers/axios';
 import { PlaywrightFetcher } from '../request/fetchers/playwright';
+import { TlsFetcher } from './fetchers/tls';
 
 export type { FetcherOptions as RequestOptions };
 
@@ -16,6 +17,8 @@ export class Request {
     switch (type) {
       case 'playwright':
         return new PlaywrightFetcher(options);
+      case 'tls':
+        return new TlsFetcher(options);
       case 'axios':
       default:
         return new AxiosFetcher(options);

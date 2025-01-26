@@ -14,7 +14,7 @@ export class DdysParser extends BaseParser {
     constructor(options: RequestOptions = {}) {
         super();
         this.request = new Request(options, this.fetcherType);
-        this.downloadRequest = new Request(options, 'axios');
+        this.downloadRequest = new Request(options, 'tls');
     }
 
     async fetchHtml(url: string): Promise<string> {

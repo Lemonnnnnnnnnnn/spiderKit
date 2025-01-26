@@ -16,6 +16,7 @@ program
   .option('--proxy-port <port>', 'Proxy port')
   .option('--proxy-protocol <protocol>', 'Proxy protocol (http/https)', 'http')
   .option('--timeout <ms>', 'Request timeout in milliseconds', '30000')
+  .option('--fetcher <type>', 'Fetcher type (axios/playwright/tls)', 'axios')
   .parse();
 
 const options = program.opts();
@@ -33,7 +34,10 @@ if (options.proxyHost && options.proxyPort) {
   };
 }
 
-const crawler = new Crawler(requestOptions);
+const crawler = new Crawler({
+  ...requestOptions,
+  // fetcherType: options.fetcher
+});
 
 crawler.crawl({
   url: options.url,
