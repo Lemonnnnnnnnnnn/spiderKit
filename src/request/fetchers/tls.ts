@@ -1,22 +1,14 @@
 import * as tls from 'tls';
-import * as https from 'https';
-import { HttpsProxyAgent } from 'https-proxy-agent';
+import * as net from 'net';
 import type { Fetcher, FetcherOptions } from './types';
 
 export class TlsFetcher implements Fetcher {
   private options: FetcherOptions;
   private ciphers: string;
-  private proxyAgent: HttpsProxyAgent<string> | null = null;
 
   constructor(options: FetcherOptions = {}) {
     this.options = options;
     this.ciphers = this.shuffleCiphers();
-    
-    // 初始化代理
-    if (options.proxy) {
-      const proxyUrl = `${options.proxy.protocol}://${options.proxy.host}:${options.proxy.port}`;
-      this.proxyAgent = new HttpsProxyAgent(proxyUrl);
-    }
   }
 
   private shuffleCiphers(): string {
@@ -29,83 +21,236 @@ export class TlsFetcher implements Fetcher {
     ].join(':');
   }
 
-  private createRequestOptions(url: string, headers?: Record<string, string>): https.RequestOptions {
-    const urlObj = new URL(url);
-    const requestOptions: https.RequestOptions = {
-      hostname: urlObj.hostname,
-      path: urlObj.pathname + urlObj.search,
-      port: urlObj.port || 443,
-      method: 'GET',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        ...headers
-      },
-      ciphers: this.ciphers,
-      timeout: this.options.timeout || 30000,
-      agent: this.proxyAgent || undefined,
-      rejectUnauthorized: false // 可选：忽略 SSL 证书验证
-    };
+  private async createConnection(hostname: string, port: number): Promise<tls.TLSSocket> {
+    let socket: net.Socket | tls.TLSSocket;
 
-    return requestOptions;
-  }
-
-  private request(options: https.RequestOptions): Promise<{ data: Buffer, headers: Record<string, string> }> {
-    return new Promise((resolve, reject) => {
-      const chunks: Buffer[] = [];
-
-      const req = https.request(options, (res) => {
-        // 处理重定向
-        if (res.statusCode && [301, 302, 303, 307, 308].includes(res.statusCode)) {
-          const location = res.headers.location;
-          if (location) {
-            const redirectOptions = this.createRequestOptions(location);
-            return this.request(redirectOptions)
-              .then(resolve)
-              .catch(reject);
-          }
-        }
-
-        res.on('data', (chunk: Buffer) => chunks.push(chunk));
-
-        res.on('end', () => {
-          const data = Buffer.concat(chunks);
-          resolve({
-            data,
-            headers: res.headers as Record<string, string>
-          });
+    // 如果配置了代理，先连接到代理服务器
+    if (this.options.proxy) {
+      socket = await new Promise<net.Socket>((resolve, reject) => {
+        const proxySocket = net.connect({
+          host: this.options.proxy!.host,
+          port: this.options.proxy!.port,
+          timeout: this.options.timeout || 30000
+        });
+        
+        proxySocket.once('connect', () => resolve(proxySocket));
+        proxySocket.once('error', reject);
+        proxySocket.once('timeout', () => {
+          proxySocket.destroy();
+          reject(new Error('Proxy connection timeout'));
         });
       });
 
-      req.on('error', (error) => {
-        reject(new Error(`Request failed: ${error.message}`));
+      // 发送 CONNECT 请求到代理
+      const connectReq = [
+        `CONNECT ${hostname}:${port} HTTP/1.1`,
+        `Host: ${hostname}:${port}`,
+        'Proxy-Connection: keep-alive',
+        'Connection: keep-alive',
+        `User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36`,
+        '',
+        ''
+      ].join('\r\n');
+      
+      socket.write(connectReq);
+
+      // 等待代理响应
+      await new Promise((resolve, reject) => {
+        let response = '';
+        const proxyTimeout = setTimeout(() => {
+          socket.destroy();
+          reject(new Error('Proxy response timeout'));
+        }, this.options.timeout || 30000);
+
+        const onData = (chunk: Buffer) => {
+          response += chunk.toString();
+          if (response.includes('\r\n\r\n')) {
+            clearTimeout(proxyTimeout);
+            socket.removeListener('data', onData);
+            
+            if (response.includes('200 Connection established')) {
+              resolve(response);
+            } else {
+              socket.destroy();
+              reject(new Error(`Proxy connection failed: ${response.split('\r\n')[0]}`));
+            }
+          }
+        };
+
+        socket.on('data', onData);
+        socket.once('error', (err) => {
+          clearTimeout(proxyTimeout);
+          reject(err);
+        });
+      });
+    } else {
+      // 直接连接目标服务器
+      socket = await new Promise<net.Socket>((resolve, reject) => {
+        const directSocket = net.connect({
+          host: hostname,
+          port: port,
+          timeout: this.options.timeout || 30000
+        });
+        
+        directSocket.once('connect', () => resolve(directSocket));
+        directSocket.once('error', reject);
+        directSocket.once('timeout', () => {
+          directSocket.destroy();
+          reject(new Error('Direct connection timeout'));
+        });
+      });
+    }
+
+    // 建立 TLS 连接
+    return new Promise<tls.TLSSocket>((resolve, reject) => {
+      const tlsSocket = tls.connect({
+        socket: socket,
+        host: hostname,
+        servername: hostname, // 添加 SNI 支持
+        port: port,
+        ciphers: this.ciphers,
+        rejectUnauthorized: false,
+        timeout: this.options.timeout || 30000,
+        enableTrace: true, // 启用跟踪以便调试
       });
 
-      req.on('timeout', () => {
-        req.destroy();
-        reject(new Error('Request timeout'));
+      const tlsTimeout = setTimeout(() => {
+        tlsSocket.destroy();
+        reject(new Error('TLS handshake timeout'));
+      }, this.options.timeout || 30000);
+
+      tlsSocket.once('secureConnect', () => {
+        clearTimeout(tlsTimeout);
+        resolve(tlsSocket);
       });
 
-      req.end();
+      tlsSocket.once('error', (err) => {
+        clearTimeout(tlsTimeout);
+        reject(err);
+      });
+
+      tlsSocket.once('timeout', () => {
+        clearTimeout(tlsTimeout);
+        tlsSocket.destroy();
+        reject(new Error('TLS connection timeout'));
+      });
+    });
+  }
+
+  private async request(url: string, headers?: Record<string, string>): Promise<{ data: Buffer, headers: Record<string, string> }> {
+    const urlObj = new URL(url);
+    const port = parseInt(urlObj.port) || 443;
+    
+    const socket = await this.createConnection(urlObj.hostname, port);
+
+    // 构建 HTTP 请求
+    const requestHeaders = {
+      'Host': urlObj.host,
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      'Connection': 'close',
+      'Accept': '*/*',
+      'Accept-Encoding': 'identity', // 不使用压缩
+      ...headers
+    };
+
+    const headerString = Object.entries(requestHeaders)
+      .map(([key, value]) => `${key}: ${value}`)
+      .join('\r\n');
+
+    const request = `GET ${urlObj.pathname}${urlObj.search} HTTP/1.1\r\n${headerString}\r\n\r\n`;
+    socket.write(request);
+
+    return new Promise((resolve, reject) => {
+      const chunks: Buffer[] = [];
+      let responseHeaders: Record<string, string> = {};
+      let headersParsed = false;
+      let responseTimeout: NodeJS.Timeout;
+
+      const cleanup = () => {
+        clearTimeout(responseTimeout);
+        socket.destroy();
+      };
+
+      const resetTimeout = () => {
+        clearTimeout(responseTimeout);
+        responseTimeout = setTimeout(() => {
+          cleanup();
+          reject(new Error('Response timeout'));
+        }, this.options.timeout || 30000) as NodeJS.Timeout;
+      };
+
+      resetTimeout();
+
+      socket.on('data', (chunk) => {
+        resetTimeout();
+
+        if (!headersParsed) {
+          const data = chunk.toString();
+          const headerEndIndex = data.indexOf('\r\n\r\n');
+          
+          if (headerEndIndex !== -1) {
+            const headers = data.substring(0, headerEndIndex);
+            const [statusLine, ...headerLines] = headers.split('\r\n');
+            const [, statusCode] = statusLine.split(' ');
+
+            if (parseInt(statusCode) >= 400) {
+              cleanup();
+              reject(new Error(`HTTP ${statusCode}`));
+              return;
+            }
+
+            headerLines.forEach((line: string) => {
+              const [key, ...values] = line.split(': ');
+              responseHeaders[key.toLowerCase()] = values.join(': ');
+            });
+
+            // 处理重定向
+            if ([301, 302, 303, 307, 308].includes(parseInt(statusCode))) {
+              const location = responseHeaders['location'];
+              if (location) {
+                cleanup();
+                this.fetchBuffer(location, headers)
+                  .then(buffer => resolve({ data: buffer, headers: responseHeaders }))
+                  .catch(reject);
+                return;
+              }
+            }
+
+            headersParsed = true;
+            const bodyStart = headerEndIndex + 4;
+            if (chunk.length > bodyStart) {
+              chunks.push(chunk.subarray(bodyStart));
+            }
+          }
+        } else {
+          chunks.push(chunk);
+        }
+      });
+
+      socket.once('end', () => {
+        cleanup();
+        const data = Buffer.concat(chunks);
+        resolve({ data, headers: responseHeaders });
+      });
+
+      socket.once('error', (error) => {
+        cleanup();
+        reject(error);
+      });
     });
   }
 
   async fetchText(url: string, headers?: Record<string, string>): Promise<string> {
-    const options = this.createRequestOptions(url, headers);
-    const { data } = await this.request(options);
+    const { data } = await this.request(url, headers);
     return data.toString('utf-8');
   }
 
   async fetchBuffer(url: string, headers?: Record<string, string>): Promise<Buffer> {
-    const options = this.createRequestOptions(url, headers);
-    const { data } = await this.request(options);
+    const { data } = await this.request(url, headers);
     return data;
   }
 
   async close(): Promise<void> {
-    // 清理代理相关资源
-    if (this.proxyAgent) {
-      this.proxyAgent.destroy();
-      this.proxyAgent = null;
-    }
+    // 无需实现关闭逻辑，因为每个请求都会关闭自己的连接
   }
 } 
