@@ -1,14 +1,22 @@
 import * as tls from 'tls';
 import * as https from 'https';
+import { HttpsProxyAgent } from 'https-proxy-agent';
 import type { Fetcher, FetcherOptions } from './types';
 
 export class TlsFetcher implements Fetcher {
   private options: FetcherOptions;
   private ciphers: string;
+  private proxyAgent: HttpsProxyAgent<string> | null = null;
 
   constructor(options: FetcherOptions = {}) {
     this.options = options;
     this.ciphers = this.shuffleCiphers();
+    
+    // 初始化代理
+    if (options.proxy) {
+      const proxyUrl = `${options.proxy.protocol}://${options.proxy.host}:${options.proxy.port}`;
+      this.proxyAgent = new HttpsProxyAgent(proxyUrl);
+    }
   }
 
   private shuffleCiphers(): string {
@@ -33,18 +41,10 @@ export class TlsFetcher implements Fetcher {
         ...headers
       },
       ciphers: this.ciphers,
-      timeout: this.options.timeout || 30000
+      timeout: this.options.timeout || 30000,
+      agent: this.proxyAgent || undefined,
+      rejectUnauthorized: false // 可选：忽略 SSL 证书验证
     };
-
-    // 添加代理支持
-    if (this.options.proxy) {
-        // @ts-expect-error
-      requestOptions.proxy = `${this.options.proxy.protocol}://${this.options.proxy.host}:${this.options.proxy.port}`;
-      requestOptions.headers = {
-        ...requestOptions.headers,
-        'Proxy-Connection': 'keep-alive'
-      };
-    }
 
     return requestOptions;
   }
@@ -102,6 +102,10 @@ export class TlsFetcher implements Fetcher {
   }
 
   async close(): Promise<void> {
-    // 无需实现关闭逻辑
+    // 清理代理相关资源
+    if (this.proxyAgent) {
+      this.proxyAgent.destroy();
+      this.proxyAgent = null;
+    }
   }
 } 
