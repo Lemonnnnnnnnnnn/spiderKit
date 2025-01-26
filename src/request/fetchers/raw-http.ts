@@ -2,7 +2,7 @@ import * as tls from 'tls';
 import * as net from 'net';
 import type { Fetcher, FetcherOptions } from './types';
 
-export class TlsFetcher implements Fetcher {
+export class RawHttpFetcher implements Fetcher {
   private options: FetcherOptions;
   private ciphers: string;
 
@@ -106,12 +106,12 @@ export class TlsFetcher implements Fetcher {
       const tlsSocket = tls.connect({
         socket: socket,
         host: hostname,
-        servername: hostname, // 添加 SNI 支持
+        servername: hostname,
         port: port,
         ciphers: this.ciphers,
         rejectUnauthorized: false,
         timeout: this.options.timeout || 30000,
-        enableTrace: true, // 启用跟踪以便调试
+        enableTrace: true,
       });
 
       const tlsTimeout = setTimeout(() => {
@@ -149,7 +149,7 @@ export class TlsFetcher implements Fetcher {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
       'Connection': 'close',
       'Accept': '*/*',
-      'Accept-Encoding': 'identity', // 不使用压缩
+      'Accept-Encoding': 'identity',
       ...headers
     };
 

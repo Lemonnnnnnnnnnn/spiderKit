@@ -9,12 +9,12 @@ export class DdysParser extends BaseParser {
     protected request: Request;
     protected downloadRequest: Request;
     name = "ddys";
-    fetcherType: FetcherType = 'tls';
+    fetcherType: FetcherType = 'raw-http';
 
     constructor(options: RequestOptions = {}) {
         super();
         this.request = new Request(options, this.fetcherType);
-        this.downloadRequest = new Request(options, 'tls');
+        this.downloadRequest = new Request(options, this.fetcherType);
     }
 
     async fetchHtml(url: string): Promise<string> {
