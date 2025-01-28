@@ -1,9 +1,10 @@
 import { BaseParser } from "../base";
-import type { ParseResult, FetcherType, MediaItem } from "../../types";
+import type { ParseResult, FetcherType, MediaItem } from "../../../types";
 import * as cheerio from 'cheerio';
 import { Request, type RequestOptions } from '../../request';
 import { mkdir } from 'fs/promises';
-import { dirname } from 'path';
+import { dirname } from 'path'; 
+
 
 export class DdysParser extends BaseParser {
     protected request: Request;

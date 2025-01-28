@@ -1,8 +1,8 @@
 import { mkdir } from 'fs/promises';
 import { join, dirname, extname } from 'path';
 import { Request, type RequestOptions } from '../request';
-import { runConcurrent } from '../utils/concurrent';
-import type { Parser, ParseResult, FetcherType, MediaItem } from '../types';
+import { runConcurrent } from '../../utils/concurrent';
+import type { Parser, ParseResult, FetcherType, MediaItem } from '../../types';
 
 export abstract class BaseParser implements Parser {
     protected request: Request;

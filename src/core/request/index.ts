@@ -1,7 +1,7 @@
-import type { Fetcher, FetcherOptions } from '../request/fetchers/types';
-import type { FetcherType } from '../types';
-import { AxiosFetcher } from '../request/fetchers/axios';
-import { PlaywrightFetcher } from '../request/fetchers/playwright';
+import type { Fetcher, FetcherOptions } from './fetchers/types';
+import type { FetcherType } from '../../types';
+import { AxiosFetcher } from './fetchers/axios';
+import { PlaywrightFetcher } from './fetchers/playwright';
 import { RawHttpFetcher } from './fetchers/raw-http';
 
 export type { FetcherOptions as RequestOptions };

@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 import { Command } from 'commander';
-import { Crawler } from './crawler';
-import type { RequestOptions } from './request';
+import { Crawler } from '../core/crawler';
+import type { RequestOptions } from '../core/request';
 
 const program = new Command();
 
