@@ -1,6 +1,5 @@
 import type { CrawlerOptions, Parser } from '../../types';
-import { NtdmParser } from '../parsers/ntdm';
-import { DdysParser } from '../parsers/ddys';
+import { NtdmParser, DdysParser, TelegraphParser } from '../parsers';
 import { join } from 'path';
 import { runConcurrent } from '../../utils/concurrent';
 import type { RequestOptions } from '../request'; 
@@ -12,7 +11,8 @@ export class Crawler {
     constructor(options: RequestOptions = {}) {
       this.parsers.push(
         new NtdmParser(options),
-        new DdysParser(options)
+        new DdysParser(options),
+        new TelegraphParser(options)
       );
     }
   
