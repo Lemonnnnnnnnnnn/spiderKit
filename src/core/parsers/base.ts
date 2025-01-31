@@ -182,7 +182,7 @@ export abstract class BaseParser implements Parser {
         }
     }
 
-    protected getDefaultExtension(type: string): string {
+    public getDefaultExtension(type: string): string {
         switch (type) {
             case 'videos':
                 return '.mp4';

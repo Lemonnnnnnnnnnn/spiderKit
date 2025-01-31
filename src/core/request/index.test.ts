@@ -72,4 +72,34 @@ describe("Request", () => {
     });
 
   });
+
+  describe("Request - Raw HTTP", () => {
+    let request: Request;
+
+    beforeAll(() => {
+      request = new Request(proxyOptions, 'raw-http');
+    });
+
+    test("应该正确处理HEAD请求", async () => {
+      const headers = await request.fetchHeaders("https://www.google.com");
+      expect(headers).toHaveProperty("content-type");
+    });
+
+    test("应该处理无效URL", async () => {
+      await expect(request.fetchText("invalid-url")).rejects.toThrow();
+    });
+  });
+
+  describe("Playwright Tests - Advanced", () => {
+    let request: Request;
+
+    beforeAll(() => {
+      request = new Request(proxyOptions, 'playwright');
+    });
+
+    test("应该正确处理页面内容", async () => {
+      const content = await request.fetchText("https://example.com");
+      expect(content).toContain("<html");
+    });
+  });
 }); 
