@@ -8,7 +8,7 @@ import { getVideoInfo } from './contexts/play';
 export class NtdmParser extends BaseParser {
     protected request: Request;
     name = 'ntdm';
-    fetcherType: FetcherType = 'axios';
+    fetcherType: FetcherType = 'raw-http';
   
     constructor(options: RequestOptions = {}) {
       super();

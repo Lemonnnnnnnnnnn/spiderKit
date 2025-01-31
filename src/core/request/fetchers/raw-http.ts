@@ -1,9 +1,29 @@
 import * as https from 'https';
+import * as tls from 'tls';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import type { Fetcher, FetcherOptions, ProgressCallback } from './types';
 
 export class RawHttpFetcher implements Fetcher {
   private proxyAgent: HttpsProxyAgent<string> | null = null;
+  private readonly defaultHeaders = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+    'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+    'Connection': 'keep-alive',
+    'Cache-Control': 'max-age=0',
+  };
+  private readonly maxRetries = 3;
+  private readonly retryDelay = 1000;
+
+  private shuffleCiphers(): string {
+    const defaultCiphers = tls.DEFAULT_CIPHERS.split(':');
+    return [
+      defaultCiphers[0],
+      defaultCiphers[2],
+      defaultCiphers[1],
+      ...defaultCiphers.slice(3)
+    ].join(':');
+  }
 
   constructor(options: FetcherOptions = {}) {
     // 初始化代理
@@ -24,8 +44,10 @@ export class RawHttpFetcher implements Fetcher {
       path: parsedUrl.pathname + parsedUrl.search,
       method: 'GET',
       headers: {
+        ...this.defaultHeaders,
         ...headers,
-      }
+      },
+      ciphers: this.shuffleCiphers(),
     };
 
     // 添加断点续传的 Range 头
@@ -43,25 +65,48 @@ export class RawHttpFetcher implements Fetcher {
     return options;
   }
 
+  private async retryRequest<T>(
+    operation: () => Promise<T>,
+    retryCount = 0
+  ): Promise<T> {
+    try {
+      return await operation();
+    } catch (error) {
+      if (retryCount >= this.maxRetries) {
+        console.error(`Failed after ${this.maxRetries} retries:`, error);
+        throw error;
+      }
+
+      console.warn(`Request failed (attempt ${retryCount + 1}/${this.maxRetries}):`, error);
+      await new Promise(resolve => setTimeout(resolve, this.retryDelay));
+      return this.retryRequest(operation, retryCount + 1);
+    }
+  }
+
   private request(
     options: https.RequestOptions,
     onProgress?: ProgressCallback,
     writeStream?: (chunk: Buffer) => Promise<void>,
     startPosition: number = 0
   ): Promise<{ data: Buffer | null, headers: Record<string, string> }> {
-    return new Promise((resolve, reject) => {
+    return this.retryRequest(() => new Promise((resolve, reject) => {
       const chunks: Buffer[] = [];
       let receivedLength = 0;  // 只计算本次请求接收的数据
       let totalLength = 0;     // 完整文件大小
 
       const req = https.request(options, (res) => {
-        // 添加对 416 状态码的处理
+        console.debug(`[${options.method}] ${options.hostname}${options.path} - ${res.statusCode}`);
+        
         if (res.statusCode === 416) {
-          // 如果服务器返回 Range Not Satisfiable，说明文件已经完全下载
           resolve({
             data: null,
             headers: res.headers as Record<string, string>
           });
+          return;
+        }
+
+        if (!res.statusCode || res.statusCode >= 400) {
+          reject(new Error(`HTTP ${res.statusCode}: ${res.statusMessage}`));
           return;
         }
 
@@ -130,9 +175,17 @@ export class RawHttpFetcher implements Fetcher {
         });
       });
 
-      req.on('error', reject);
+      req.on('error', (error) => {
+        console.error('Request error:', {
+          url: `${options.hostname}${options.path}`,
+          error: error.message,
+          stack: error.stack
+        });
+        reject(error);
+      });
+
       req.end();
-    });
+    }));
   }
 
   async fetchText(url: string, headers?: Record<string, string>): Promise<string> {

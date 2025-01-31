@@ -37,11 +37,11 @@ describe("Request", () => {
     }, 120000);
   });
 
-  describe("Axios Tests", () => {
+  describe("Raw-http Tests", () => {
     let request: Request;
 
     beforeAll(() => {
-      request = new Request(proxyOptions, 'axios'); // 使用 Axios
+      request = new Request(proxyOptions, 'raw-http'); // 使用 Axios
     });
 
     test("should fetch text from Google with proxy", async () => {

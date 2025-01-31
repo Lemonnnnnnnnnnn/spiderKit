@@ -5,7 +5,7 @@ import { Request, type RequestOptions } from '../../request';
 
 export class TelegraphParser extends BaseParser {
     name = 'telegraph';
-    fetcherType: FetcherType = 'axios';
+    fetcherType: FetcherType = 'raw-http';
 
     constructor(options: RequestOptions = {}) {
         super(options);
