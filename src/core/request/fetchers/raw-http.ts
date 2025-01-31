@@ -1,7 +1,7 @@
 import * as tls from 'tls';
 import * as https from 'https';
 import { HttpsProxyAgent } from 'https-proxy-agent';
-import type { Fetcher, FetcherOptions } from './types';
+import type { Fetcher, FetcherOptions, ProgressCallback } from './types';
 
 export class RawHttpFetcher implements Fetcher {
   private options: FetcherOptions;
@@ -49,9 +49,15 @@ export class RawHttpFetcher implements Fetcher {
     return requestOptions;
   }
 
-  private request(options: https.RequestOptions): Promise<{ data: Buffer, headers: Record<string, string> }> {
+  private request(
+    options: https.RequestOptions,
+    onProgress?: ProgressCallback,
+    writeStream?: (chunk: Buffer) => Promise<void>
+  ): Promise<{ data: Buffer | null, headers: Record<string, string> }> {
     return new Promise((resolve, reject) => {
       const chunks: Buffer[] = [];
+      let receivedLength = 0;
+      let totalLength = 0;
 
       const req = https.request(options, (res) => {
         // 处理重定向
@@ -59,20 +65,43 @@ export class RawHttpFetcher implements Fetcher {
           const location = res.headers.location;
           if (location) {
             const redirectOptions = this.createRequestOptions(location);
-            return this.request(redirectOptions)
+            return this.request(redirectOptions, onProgress, writeStream)
               .then(resolve)
               .catch(reject);
           }
         }
 
-        res.on('data', (chunk: Buffer) => chunks.push(chunk));
+        // 获取内容总长度
+        totalLength = parseInt(res.headers['content-length'] || '0', 10);
 
-        res.on('end', () => {
-          const data = Buffer.concat(chunks);
-          resolve({
-            data,
-            headers: res.headers as Record<string, string>
-          });
+        res.on('data', (chunk: Buffer) => {
+          if (writeStream) {
+            // 流式写入文件
+            writeStream(chunk);
+          } else {
+            chunks.push(chunk);  // chunk 已经是 Buffer，直接使用
+          }
+          receivedLength += chunk.length;
+          
+          // 报告下载进度
+          if (totalLength > 0 && onProgress) {
+            onProgress(receivedLength, totalLength);
+          }
+        });
+
+        res.on('end', async () => {
+          if (writeStream) {
+            resolve({
+              data: null,
+              headers: res.headers as Record<string, string>
+            });
+          } else {
+            const data = Buffer.concat(chunks);
+            resolve({
+              data,
+              headers: res.headers as Record<string, string>
+            });
+          }
         });
       });
 
@@ -92,13 +121,18 @@ export class RawHttpFetcher implements Fetcher {
   async fetchText(url: string, headers?: Record<string, string>): Promise<string> {
     const options = this.createRequestOptions(url, headers);
     const { data } = await this.request(options);
-    return data.toString('utf-8');
+    return data?.toString('utf-8') ?? '';
   }
 
-  async fetchBuffer(url: string, headers?: Record<string, string>): Promise<Buffer> {
-    const options = this.createRequestOptions(url, headers);
-    const { data } = await this.request(options);
-    return data;
+  async fetchBuffer(
+    url: string, 
+    headers?: Record<string, string>,
+    onProgress?: ProgressCallback,
+    writeStream?: (chunk: Buffer) => Promise<void>
+  ): Promise<Buffer> {
+    const requestOptions = this.createRequestOptions(url, headers);
+    const { data } = await this.request(requestOptions, onProgress, writeStream);
+    return data ?? Buffer.from([]);
   }
 
   async close(): Promise<void> {

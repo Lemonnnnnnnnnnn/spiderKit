@@ -14,7 +14,7 @@ export interface Parser {
   parse(html: string): Promise<ParseResult>;
   match(url: string): boolean;
   fetchHtml(url: string): Promise<string>;
-  downloadMedia(item: MediaItem, outputDir: string): Promise<void>;
+  downloadMedia(item: MediaItem, destPath: string): Promise<Buffer>;
   downloadBatch(
     items: MediaItem[],
     outputDir: string,
@@ -31,6 +31,7 @@ export interface ParseResult {
   videos?: MediaItem[]; 
   [key: string]: any;
 }
+
 
 export interface MediaItem {
   name: string;

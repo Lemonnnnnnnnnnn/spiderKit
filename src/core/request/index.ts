@@ -1,4 +1,4 @@
-import type { Fetcher, FetcherOptions } from './fetchers/types';
+import type { Fetcher, FetcherOptions, ProgressCallback } from './fetchers/types';
 import type { FetcherType } from '../../types';
 import { AxiosFetcher } from './fetchers/axios';
 import { PlaywrightFetcher } from './fetchers/playwright';
@@ -29,8 +29,13 @@ export class Request {
     return this.fetcher.fetchText(url, headers);
   }
 
-  async fetchBuffer(url: string, headers?: Record<string, string>): Promise<Buffer> {
-    return this.fetcher.fetchBuffer(url, headers);
+  async fetchBuffer(
+    url: string, 
+    headers?: Record<string, string>,
+    onProgress?: ProgressCallback,
+    writeStream?: (chunk: Buffer) => Promise<void>
+  ): Promise<Buffer> {
+    return this.fetcher.fetchBuffer(url, headers, onProgress, writeStream);
   }
 
   async close(): Promise<void> {
