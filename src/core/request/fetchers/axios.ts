@@ -16,7 +16,6 @@ export class AxiosFetcher implements Fetcher {
 
     const config: AxiosRequestConfig = {
       timeout: options.timeout || 30000,
-      responseType: 'arraybuffer',
       headers: this.defaultHeaders,
       validateStatus: status => status >= 200 && status < 300
     };
@@ -33,7 +32,8 @@ export class AxiosFetcher implements Fetcher {
   async fetchText(url: string, headers?: Record<string, string>): Promise<string> {
     try {
       const response = await this.client.get(url, {
-        headers: { ...this.defaultHeaders, ...headers }
+        headers: { ...this.defaultHeaders, ...headers },
+        responseType: 'text'
       });
       return response.data;
     } catch (error) {

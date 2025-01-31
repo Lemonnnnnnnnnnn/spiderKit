@@ -1,8 +1,8 @@
 import * as cheerio from 'cheerio';
-import type { ParseResult, FetcherType, MediaItem } from '../../../types';
+import type { FetcherType, ParseResult } from '../../../types';
+import { Request, type RequestOptions } from '../../request';
 import { BaseParser } from '../base';
 import { getVideoInfo } from './contexts/play';
-import { Request, type RequestOptions } from '../../request'; 
 
 
 export class NtdmParser extends BaseParser {
