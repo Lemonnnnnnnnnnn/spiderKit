@@ -1,6 +1,5 @@
 import type { Fetcher, FetcherOptions, ProgressCallback } from './fetchers/types';
 import type { FetcherType } from '../../types';
-import { AxiosFetcher } from './fetchers/axios';
 import { PlaywrightFetcher } from './fetchers/playwright';
 import { RawHttpFetcher } from './fetchers/raw-http';
 
@@ -9,7 +8,7 @@ export type { FetcherOptions as RequestOptions };
 export class Request {
   private fetcher: Fetcher;
 
-  constructor(options: FetcherOptions = {}, fetcherType: FetcherType = 'axios') {
+  constructor(options: FetcherOptions = {}, fetcherType: FetcherType = 'raw-http') {
     this.fetcher = this.createFetcher(fetcherType, options);
   }
 
@@ -18,10 +17,8 @@ export class Request {
       case 'playwright':
         return new PlaywrightFetcher(options);
       case 'raw-http':
-        return new RawHttpFetcher(options);
-      case 'axios':
       default:
-        return new AxiosFetcher(options);
+        return new RawHttpFetcher(options);
     }
   }
 
@@ -37,6 +34,10 @@ export class Request {
     startPosition: number = 0
   ): Promise<Buffer> {
     return this.fetcher.fetchBuffer(url, headers, onProgress, writeStream, startPosition);
+  }
+
+  async fetchHeaders(url: string, headers?: Record<string, string>): Promise<Record<string, string>> {
+    return this.fetcher.fetchHeaders(url, headers);
   }
 
   async close(): Promise<void> {

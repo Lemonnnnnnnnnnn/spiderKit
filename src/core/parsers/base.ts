@@ -1,4 +1,5 @@
-import { mkdir, stat } from 'fs/promises';
+import { createWriteStream, type Stats } from 'fs';
+import { mkdir, stat, unlink } from 'fs/promises';
 import { join, dirname, extname } from 'path';
 import { Request, type RequestOptions } from '../request';
 import { runConcurrent } from '../../utils/concurrent';
@@ -15,7 +16,7 @@ export abstract class BaseParser implements Parser {
 
     constructor(options: RequestOptions = {}) {
         this.request = new Request(options);
-        this.downloadRequest = new Request(options, 'axios'); // 下载始终使用 axios
+        this.downloadRequest = new Request(options);
         this.formatter = new DownloadFormatter();
     }
 
@@ -25,35 +26,103 @@ export abstract class BaseParser implements Parser {
 
     // 添加下载相关方法
     async downloadMedia(item: MediaItem, destPath: string): Promise<Buffer> {
-        try {
-            this.info(`开始下载: ${item.name}`);
-            let lastLogged = 0;
-            const startTime = Date.now();
+        // 使用 downloadWithResume 作为默认实现
+        return this.downloadWithResume(item, destPath);
+    }
 
-            const buffer = await this.downloadRequest.fetchBuffer(
+    protected async downloadWithResume(
+        item: MediaItem,
+        destPath: string,
+        headers: Record<string, string> = {}
+    ): Promise<Buffer> {
+        let writeStream: ReturnType<typeof createWriteStream> | null = null;
+        let lastLogged = 0;
+        const startTime = Date.now();
+        let fileStats: Stats | null = null;
+
+        try {
+            // 检查是否存在已下载的文件
+            try {
+                fileStats = await stat(destPath);
+                const remoteHeaders = await this.downloadRequest.fetchHeaders(item.url, headers);
+                const remoteSize = parseInt(remoteHeaders['content-length'] || '0', 10);
+
+                if (fileStats.size === remoteSize && remoteSize > 0) {
+                    this.success(`文件已存在且完整: ${destPath}`);
+                    return Buffer.from([]);
+                }
+
+                if (fileStats.size > remoteSize && remoteSize > 0) {
+                    this.warn(`本地文件大小异常，将重新下载`);
+                    await unlink(destPath);
+                    fileStats = null;
+                } else if (fileStats.size < remoteSize) {
+                    this.info(`发现未完成的下载，从 ${this.formatter.formatSize(fileStats.size)} 处继续`);
+                    headers['Range'] = `bytes=${fileStats.size}-`;
+                }
+            } catch (e) {
+                // 文件不存在，从头开始下载
+                fileStats = null;
+            }
+
+            // 创建目录
+            await mkdir(dirname(destPath), { recursive: true });
+            
+            // 根据是否需要断点续传选择写入模式
+            const writeMode = headers['Range'] ? 'a' : 'w';
+            writeStream = createWriteStream(destPath, { flags: writeMode });
+
+            await this.downloadRequest.fetchBuffer(
                 item.url,
-                undefined,
+                headers,
                 (downloaded, total) => {
-                    // 每秒最多更新一次进度，避免日志刷新太快
                     const now = Date.now();
                     if (now - lastLogged >= 1000) {
+                        const dl = downloaded + (fileStats?.size || 0);
                         const speed = (downloaded / (1024 * 1024)) / ((now - startTime) / 1000);
                         this.info(
                             `${item.name} - ` +
-                            this.formatter.formatProgress(downloaded, total, speed)
+                            this.formatter.formatProgress(dl, total, speed)
                         );
                         lastLogged = now;
                     }
-                }
+                },
+                async (chunk) => {
+                    if (!writeStream) {
+                        throw new Error('Write stream is not initialized');
+                    }
+                    return new Promise((resolve, reject) => {
+                        writeStream!.write(chunk, (error) => {
+                            if (error) reject(error);
+                            else resolve();
+                        });
+                    });
+                },
+                fileStats?.size || 0
             );
 
-            await mkdir(dirname(destPath), { recursive: true });
-            await Bun.write(destPath, buffer);
+            // 关闭写入流
+            await new Promise((resolve, reject) => {
+                if (!writeStream) {
+                    reject(new Error('Write stream is not initialized'));
+                    return;
+                }
+                writeStream.end((error: any) => {
+                    if (error) reject(error);
+                    else resolve(null);
+                });
+            });
+
             this.success(`下载完成: ${destPath}`);
-            return buffer;
+            return Buffer.from([]);
+
         } catch (error) {
             this.error(`下载失败: ${item.name}`, error);
             throw error;
+        } finally {
+            if (writeStream) {
+                writeStream.end();
+            }
         }
     }
 
@@ -150,4 +219,6 @@ export abstract class BaseParser implements Parser {
             this.downloadRequest.close()
         ]);
     }
+
+
 }

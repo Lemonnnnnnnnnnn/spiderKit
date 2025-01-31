@@ -55,6 +55,16 @@ export class RawHttpFetcher implements Fetcher {
       let totalLength = 0;     // 完整文件大小
 
       const req = https.request(options, (res) => {
+        // 添加对 416 状态码的处理
+        if (res.statusCode === 416) {
+          // 如果服务器返回 Range Not Satisfiable，说明文件已经完全下载
+          resolve({
+            data: null,
+            headers: res.headers as Record<string, string>
+          });
+          return;
+        }
+
         // 处理重定向
         if (res.statusCode && [301, 302, 303, 307, 308].includes(res.statusCode)) {
           const location = res.headers.location;
@@ -141,6 +151,30 @@ export class RawHttpFetcher implements Fetcher {
     const requestOptions = this.createRequestOptions(url, headers, startPosition);
     const { data } = await this.request(requestOptions, onProgress, writeStream, startPosition);
     return data ?? Buffer.from([]);
+  }
+
+  async fetchHeaders(url: string, headers?: Record<string, string>): Promise<Record<string, string>> {
+    const options = this.createRequestOptions(url, headers);
+    options.method = 'HEAD';  // 使用 HEAD 请求只获取头信息
+    
+    return new Promise((resolve, reject) => {
+        const req = https.request(options, (res) => {
+            if (res.statusCode && [301, 302, 303, 307, 308].includes(res.statusCode)) {
+                const location = res.headers.location;
+                if (location && typeof location === 'string') {
+                    const redirectOptions = this.createRequestOptions(location, headers);
+                    redirectOptions.method = 'HEAD';
+                    return this.fetchHeaders(location, headers)
+                        .then(resolve)
+                        .catch(reject);
+                }
+            }
+            resolve(res.headers as Record<string, string>);
+        });
+
+        req.on('error', reject);
+        req.end();
+    });
   }
 
   async close(): Promise<void> {

@@ -69,6 +69,23 @@ export class PlaywrightFetcher implements Fetcher {
     }
   }
 
+  async fetchHeaders(url: string, headers?: Record<string, string>): Promise<Record<string, string>> {
+    await this.initialize();
+    const page = await this.context!.newPage();
+    try {
+      const response = await page.goto(url, {
+        timeout: this.options.timeout || 30000,
+        waitUntil: 'networkidle'
+      });
+      const responseHeaders = response?.headers() || {};
+      await page.close();
+      return responseHeaders;
+    } catch (error) {
+      await page.close();
+      throw new Error(`Failed to fetch headers from ${url}: ${error}`);
+    }
+  }
+
   async close(): Promise<void> {
     if (this.browser) {
       await this.browser.close();

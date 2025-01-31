@@ -1,4 +1,3 @@
-
 export interface FetcherOptions {
   proxy?: {
     host: string;
@@ -22,6 +21,7 @@ export interface Fetcher {
     writeStream?: (chunk: Buffer) => Promise<void>,
     startPosition?: number
   ): Promise<Buffer>;
+  fetchHeaders(url: string, headers?: Record<string, string>): Promise<Record<string, string>>;
   close?(): Promise<void>;
 } 
 
