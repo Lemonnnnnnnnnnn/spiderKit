@@ -1,4 +1,4 @@
-import { mkdir } from 'fs/promises';
+import { mkdir, stat } from 'fs/promises';
 import { join, dirname, extname } from 'path';
 import { Request, type RequestOptions } from '../request';
 import { runConcurrent } from '../../utils/concurrent';
@@ -76,9 +76,16 @@ export abstract class BaseParser implements Parser {
             const destPath = join(outputDir, type, filename);
 
             try {
-                const buffer = await this.downloadMedia(item, destPath);
+                await this.downloadMedia(item, destPath);
                 completed++;
-                totalBytes += buffer.length;
+                
+                // 获取实际文件大小
+                try {
+                    const stats = await stat(destPath);
+                    totalBytes += stats.size;
+                } catch (e) {
+                    // 如果无法获取文件大小，忽略错误
+                }
 
                 const elapsedSeconds = (Date.now() - startTime) / 1000;
                 const speedMBps = (totalBytes / (1024 * 1024)) / elapsedSeconds;
