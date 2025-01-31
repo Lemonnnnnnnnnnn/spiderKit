@@ -30,12 +30,13 @@ export class Request {
   }
 
   async fetchBuffer(
-    url: string, 
+    url: string,
     headers?: Record<string, string>,
     onProgress?: ProgressCallback,
-    writeStream?: (chunk: Buffer) => Promise<void>
+    writeStream?: (chunk: Buffer) => Promise<void>,
+    startPosition: number = 0
   ): Promise<Buffer> {
-    return this.fetcher.fetchBuffer(url, headers, onProgress, writeStream);
+    return this.fetcher.fetchBuffer(url, headers, onProgress, writeStream, startPosition);
   }
 
   async close(): Promise<void> {

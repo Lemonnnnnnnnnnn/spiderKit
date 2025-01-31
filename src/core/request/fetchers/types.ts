@@ -19,7 +19,8 @@ export interface Fetcher {
     url: string, 
     headers?: Record<string, string>,
     onProgress?: ProgressCallback,
-    writeStream?: (chunk: Buffer) => Promise<void>
+    writeStream?: (chunk: Buffer) => Promise<void>,
+    startPosition?: number
   ): Promise<Buffer>;
   close?(): Promise<void>;
 } 

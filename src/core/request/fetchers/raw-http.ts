@@ -1,17 +1,11 @@
-import * as tls from 'tls';
 import * as https from 'https';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import type { Fetcher, FetcherOptions, ProgressCallback } from './types';
 
 export class RawHttpFetcher implements Fetcher {
-  private options: FetcherOptions;
-  private ciphers: string;
   private proxyAgent: HttpsProxyAgent<string> | null = null;
 
   constructor(options: FetcherOptions = {}) {
-    this.options = options;
-    this.ciphers = this.shuffleCiphers();
-    
     // 初始化代理
     if (options.proxy) {
       const proxyUrl = `${options.proxy.protocol}://${options.proxy.host}:${options.proxy.port}`;
@@ -19,72 +13,93 @@ export class RawHttpFetcher implements Fetcher {
     }
   }
 
-  private shuffleCiphers(): string {
-    const defaultCiphers = tls.DEFAULT_CIPHERS.split(':');
-    return [
-      defaultCiphers[0],
-      defaultCiphers[2],
-      defaultCiphers[1],
-      ...defaultCiphers.slice(3)
-    ].join(':');
-  }
-
-  private createRequestOptions(url: string, headers?: Record<string, string>): https.RequestOptions {
-    const urlObj = new URL(url);
-    const requestOptions: https.RequestOptions = {
-      hostname: urlObj.hostname,
-      path: urlObj.pathname + urlObj.search,
-      port: urlObj.port || 443,
+  private createRequestOptions(
+    url: string, 
+    headers?: Record<string, string>,
+    startPosition?: number
+  ): https.RequestOptions {
+    const parsedUrl = new URL(url);
+    const options: https.RequestOptions = {
+      hostname: parsedUrl.hostname,
+      path: parsedUrl.pathname + parsedUrl.search,
       method: 'GET',
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        ...headers
-      },
-      ciphers: this.ciphers,
-      timeout: this.options.timeout || 30000,
-      agent: this.proxyAgent || undefined,
-      rejectUnauthorized: false // 可选：忽略 SSL 证书验证
+        ...headers,
+      }
     };
 
-    return requestOptions;
+    // 添加断点续传的 Range 头
+    if (startPosition && startPosition > 0) {
+      options.headers = {
+        ...options.headers,
+        'Range': `bytes=${startPosition}-`
+      };
+    }
+
+    if (this.proxyAgent) {
+      options.agent = this.proxyAgent;
+    }
+
+    return options;
   }
 
   private request(
     options: https.RequestOptions,
     onProgress?: ProgressCallback,
-    writeStream?: (chunk: Buffer) => Promise<void>
+    writeStream?: (chunk: Buffer) => Promise<void>,
+    startPosition: number = 0
   ): Promise<{ data: Buffer | null, headers: Record<string, string> }> {
     return new Promise((resolve, reject) => {
       const chunks: Buffer[] = [];
-      let receivedLength = 0;
-      let totalLength = 0;
+      let receivedLength = 0;  // 只计算本次请求接收的数据
+      let totalLength = 0;     // 完整文件大小
 
       const req = https.request(options, (res) => {
         // 处理重定向
         if (res.statusCode && [301, 302, 303, 307, 308].includes(res.statusCode)) {
           const location = res.headers.location;
-          if (location) {
-            const redirectOptions = this.createRequestOptions(location);
-            return this.request(redirectOptions, onProgress, writeStream)
+          if (location && typeof location === 'string') {
+            const redirectOptions = this.createRequestOptions(
+              location,
+              options.headers as Record<string, string>,
+              startPosition
+            );
+            return this.request(redirectOptions, onProgress, writeStream, startPosition)
               .then(resolve)
               .catch(reject);
           }
         }
 
+        // 检查是否支持断点续传
+        if (startPosition > 0 && res.statusCode !== 206) {
+          reject(new Error('Server does not support resume'));
+          return;
+        }
+
         // 获取内容总长度
-        totalLength = parseInt(res.headers['content-length'] || '0', 10);
+        if (res.statusCode === 206) {
+          // 处理 Content-Range: bytes 0-1023/146515
+          const range = res.headers['content-range'];
+          if (range) {
+            const match = range.match(/bytes \d+-\d+\/(\d+)/);
+            if (match) {
+              totalLength = parseInt(match[1], 10);  // 从 Content-Range 获取完整文件大小
+            }
+          }
+        } else {
+          totalLength = parseInt(res.headers['content-length'] || '0', 10);
+        }
 
         res.on('data', (chunk: Buffer) => {
           if (writeStream) {
-            // 流式写入文件
             writeStream(chunk);
           } else {
-            chunks.push(chunk);  // chunk 已经是 Buffer，直接使用
+            chunks.push(chunk);
           }
           receivedLength += chunk.length;
           
-          // 报告下载进度
           if (totalLength > 0 && onProgress) {
+            // 对于断点续传，传递完整文件大小和当前下载进度
             onProgress(receivedLength, totalLength);
           }
         });
@@ -105,15 +120,7 @@ export class RawHttpFetcher implements Fetcher {
         });
       });
 
-      req.on('error', (error) => {
-        reject(new Error(`Request failed: ${error.message}`));
-      });
-
-      req.on('timeout', () => {
-        req.destroy();
-        reject(new Error('Request timeout'));
-      });
-
+      req.on('error', reject);
       req.end();
     });
   }
@@ -128,10 +135,11 @@ export class RawHttpFetcher implements Fetcher {
     url: string, 
     headers?: Record<string, string>,
     onProgress?: ProgressCallback,
-    writeStream?: (chunk: Buffer) => Promise<void>
+    writeStream?: (chunk: Buffer) => Promise<void>,
+    startPosition: number = 0
   ): Promise<Buffer> {
-    const requestOptions = this.createRequestOptions(url, headers);
-    const { data } = await this.request(requestOptions, onProgress, writeStream);
+    const requestOptions = this.createRequestOptions(url, headers, startPosition);
+    const { data } = await this.request(requestOptions, onProgress, writeStream, startPosition);
     return data ?? Buffer.from([]);
   }
 
