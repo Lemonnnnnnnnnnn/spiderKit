@@ -45,13 +45,57 @@ export class Request {
     };
   }
 
-  private async request(
+  private async baseRequest(
+    options: https.RequestOptions
+  ): Promise<RequestResult> {
+    return new Promise((resolve, reject) => {
+      const req = https.request(options, async (res) => {
+        this.logRequest(options, res.statusCode);
+        const chunks: Buffer[] = [];
+
+        try {
+          if (!res.statusCode || res.statusCode >= 400) {
+            throw new Error(`HTTP ${res.statusCode}: ${res.statusMessage}`);
+          }
+
+          res.on('data', (chunk: Buffer) => {
+            chunks.push(chunk);
+          });
+
+          res.on('end', () => {
+            resolve({
+              data: Buffer.concat(chunks),
+              headers: res.headers as Record<string, string>
+            });
+          });
+        } catch (error) {
+          reject(error);
+        }
+      });
+
+      this.attachErrorHandler(req, options, reject);
+      req.end();
+    });
+  }
+
+  private async bufferRequest(
     options: https.RequestOptions,
     onProgress?: ProgressCallback,
     writeStream?: (chunk: Buffer) => Promise<void>,
     startPosition: number = 0
   ): Promise<RequestResult> {
-    const context = this.createRequestContext(options, startPosition, onProgress, writeStream);
+    const context: RequestContext = {
+      options: this.options,
+      data: null,
+      headers: {},
+      url: `https://${options.hostname}${options.path}`,
+      startPosition,
+      onProgress,
+      writeStream,
+      chunks: [],
+      receivedLength: 0,
+      totalLength: 0
+    };
 
     return new Promise((resolve, reject) => {
       const req = https.request(options, async (res) => {
@@ -71,7 +115,6 @@ export class Request {
             throw new Error('Server does not support resume');
           }
 
-          // Handle response status
           if (!res.statusCode || res.statusCode >= 400) {
             throw new Error(`HTTP ${res.statusCode}: ${res.statusMessage}`);
           }
@@ -98,26 +141,6 @@ export class Request {
       this.attachErrorHandler(req, options, reject);
       req.end();
     });
-  }
-
-  private createRequestContext(
-    options: https.RequestOptions,
-    startPosition: number,
-    onProgress?: ProgressCallback,
-    writeStream?: (chunk: Buffer) => Promise<void>
-  ): RequestContext {
-    return {
-      options: this.options,
-      data: null,
-      headers: {},
-      url: `https://${options.hostname}${options.path}`,
-      startPosition,
-      onProgress,
-      writeStream,
-      chunks: [],
-      receivedLength: 0,
-      totalLength: 0
-    };
   }
 
   private handleRequestStream(
@@ -179,7 +202,7 @@ export class Request {
 
   async fetchText(url: string, headers?: Record<string, string>): Promise<string> {
     const options = this.createRequestOptions(url, headers);
-    const { data } = await this.request(options);
+    const { data } = await this.baseRequest(options);
     return data?.toString('utf-8') ?? '';
   }
 
@@ -191,22 +214,15 @@ export class Request {
     startPosition: number = 0
   ): Promise<Buffer> {
     const requestOptions = this.createRequestOptions(url, headers, startPosition);
-    const { data } = await this.request(requestOptions, onProgress, writeStream, startPosition);
+    const { data } = await this.bufferRequest(requestOptions, onProgress, writeStream, startPosition);
     return data ?? Buffer.from([]);
   }
 
   async fetchHeaders(url: string, headers?: Record<string, string>): Promise<Record<string, string>> {
     const options = this.createRequestOptions(url, headers);
-    options.method = 'HEAD';  // 使用 HEAD 请求只获取头信息
-    
-    return new Promise((resolve, reject) => {
-        const req = https.request(options, (res) => {
-            resolve(res.headers as Record<string, string>);
-        });
-
-        req.on('error', reject);
-        req.end();
-    });
+    options.method = 'HEAD';
+    const { headers: responseHeaders } = await this.baseRequest(options);
+    return responseHeaders;
   }
 
   async close(): Promise<void> {
