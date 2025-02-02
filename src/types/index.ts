@@ -6,11 +6,8 @@ export interface CrawlerOptions {
     concurrentDownloads?: number; // 并发下载数量  
 }
   
-export type FetcherType = 'playwright' | 'raw-http';
-
 export interface Parser {
   name: string;
-  fetcherType: FetcherType;
   parse(html: string): Promise<ParseResult>;
   match(url: string): boolean;
   fetchHtml(url: string): Promise<string>;
@@ -21,7 +18,7 @@ export interface Parser {
     type: string,
     concurrent: number
   ): Promise<void>;
-  close?(): Promise<void>;  // 添加可选的关闭方法
+  close?(): Promise<void>;
 }
   
 export interface ParseResult {

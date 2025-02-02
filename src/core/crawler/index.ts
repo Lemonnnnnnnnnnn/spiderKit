@@ -12,7 +12,7 @@ export class Crawler {
       this.parsers.push(
         new NtdmParser(options),
         new DdysParser(options),
-        new TelegraphParser(options)
+        new TelegraphParser(options),
       );
     }
   

@@ -23,7 +23,6 @@
     "cheerio": "^1.0.0",
     "commander": "^13.0.0",
     "crypto-js": "^4.2.0",
-    "https-proxy-agent": "^7.0.6",
-    "playwright": "^1.50.0"
+    "https-proxy-agent": "^7.0.6"
   }
 }

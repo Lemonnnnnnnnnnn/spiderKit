@@ -1,5 +1,5 @@
 import * as cheerio from 'cheerio';
-import type { FetcherType, MediaItem, ParseResult } from "../../../types";
+import type { MediaItem, ParseResult } from "../../../types";
 import { DownloadFormatter } from '../../../utils/format';
 import { Request, type RequestOptions } from '../../request';
 import { BaseParser } from "../base";
@@ -8,13 +8,11 @@ import { BaseParser } from "../base";
 export class DdysParser extends BaseParser {
     protected request: Request;
     name = "ddys";
-    fetcherType: FetcherType = 'raw-http';
     protected formatter: DownloadFormatter;
 
     constructor(options: RequestOptions = {}) {
         super(options);
-        this.request = new Request(options, this.fetcherType);
-      this.downloadRequest = new Request(options, this.fetcherType);
+        this.request = new Request(options);
         this.formatter = new DownloadFormatter();
     }
 

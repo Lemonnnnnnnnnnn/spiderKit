@@ -3,20 +3,17 @@ import { mkdir, stat, unlink } from 'fs/promises';
 import { join, dirname, extname } from 'path';
 import { Request, type RequestOptions } from '../request';
 import { runConcurrent } from '../../utils/concurrent';
-import type { Parser, ParseResult, FetcherType, MediaItem } from '../../types';
+import type { Parser, ParseResult, MediaItem } from '../../types';
 import { DownloadFormatter } from '../../utils/format';
 import { logger } from '../../utils/logger';
 
 export abstract class BaseParser implements Parser {
     protected request: Request;
-    protected downloadRequest: Request; // 专门用于下载的 request
     abstract name: string;
-    abstract fetcherType: FetcherType;
     protected formatter: DownloadFormatter;
 
     constructor(options: RequestOptions = {}) {
         this.request = new Request(options);
-        this.downloadRequest = new Request(options);
         this.formatter = new DownloadFormatter();
     }
 
@@ -44,7 +41,7 @@ export abstract class BaseParser implements Parser {
             // 检查是否存在已下载的文件
             try {
                 fileStats = await stat(destPath);
-                const remoteHeaders = await this.downloadRequest.fetchHeaders(item.url, headers);
+                const remoteHeaders = await this.request.fetchHeaders(item.url, headers);
                 const remoteSize = parseInt(remoteHeaders['content-length'] || '0', 10);
 
                 if (fileStats.size === remoteSize && remoteSize > 0) {
@@ -72,10 +69,11 @@ export abstract class BaseParser implements Parser {
             const writeMode = headers['Range'] ? 'a' : 'w';
             writeStream = createWriteStream(destPath, { flags: writeMode });
 
-            await this.downloadRequest.fetchBuffer(
+            await this.request.fetchBuffer(
                 item.url,
                 headers,
                 (downloaded, total) => {
+
                     const now = Date.now();
                     if (now - lastLogged >= 1000) {
                         const dl = downloaded + (fileStats?.size || 0);
@@ -216,9 +214,6 @@ export abstract class BaseParser implements Parser {
     async close(): Promise<void> {
         await Promise.all([
             this.request.close(),
-            this.downloadRequest.close()
         ]);
     }
-
-
 }

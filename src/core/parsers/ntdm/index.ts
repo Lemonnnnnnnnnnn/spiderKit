@@ -1,18 +1,16 @@
 import * as cheerio from 'cheerio';
-import type { FetcherType, ParseResult } from '../../../types';
+import type { ParseResult } from '../../../types';
 import { Request, type RequestOptions } from '../../request';
 import { BaseParser } from '../base';
 import { getVideoInfo } from './contexts/play';
 
-
 export class NtdmParser extends BaseParser {
     protected request: Request;
     name = 'ntdm';
-    fetcherType: FetcherType = 'raw-http';
-  
+
     constructor(options: RequestOptions = {}) {
       super();
-      this.request = new Request(options, this.fetcherType);
+      this.request = new Request(options);
     }
     
     async fetchHtml(url: string): Promise<string> {
