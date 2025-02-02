@@ -178,3 +178,8 @@ output
 
 spiderKit.exe
 spiderKit
+
+# Platform-specific binaries
+spiderkit-linux
+spiderkit-windows.exe
+spiderkit-macos

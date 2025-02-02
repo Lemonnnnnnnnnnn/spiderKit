@@ -1,0 +1,60 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            output: spiderkit-linux
+          - os: windows-latest
+            output: spiderkit-windows.exe
+          - os: macos-latest
+            output: spiderkit-macos
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install Dependencies
+        run: bun install
+
+      - name: Build Binary
+        run: bun build ./src/cli/index.ts --compile --outfile ${{ matrix.output }}
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.output }}
+          path: ${{ matrix.output }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            artifacts/spiderkit-linux/spiderkit-linux
+            artifacts/spiderkit-windows.exe/spiderkit-windows.exe
+            artifacts/spiderkit-macos/spiderkit-macos
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
